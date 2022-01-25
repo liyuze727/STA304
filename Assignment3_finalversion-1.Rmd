@@ -1,0 +1,567 @@
+---
+title: "Research of Voting Percentage of Conservatives Party"
+author: 'GROUP 45: Haoruo Luo, Jiaxin Hou, Xiaolong Zhao, Yuze Li'
+date: "November 5, 2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+subtitle: STA304 - Assignment 3
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(openintro)
+library(tidyverse)
+library(patchwork)
+library(broom)
+library(scales)
+```
+
+
+
+## Introduction
+
+We live in a democracy, and elections are the foundation of democratic politics. Direct democracy which allows citizens to make direct decisions is impractical in modern societies, and thus representatives need to be selected and represent the citizens in the government through elections[Why Do We Care about Elections?, 2021][1]. The Canadian election is vital to all of us who live in this country. It is also important for a democracy because the results of the next election can change the direction of a country. Different parties will have different development focuses and policies. These policies are not only about citizens' livelihood but also about the relationship between the country and other countries. To predict the result of the next federal election will get people aware of future policies and make better choices. 
+
+Based on the importance of the next election, we conduct this research to find the **voting percentage of the Conservative Party in the next election**. We are particularly interested in the Conservative Party, which has been in power for nearly a decade and lost to the Liberal Party in the 2015 federal election. It is the current Official Opposition Party and one of the largest parties in Canada. Furthermore, its main competitor the Liberal Party missed the majority once again[The Associated Press, 2021][2], which made people interested in the chance of winning for the Conservative Party. The analysis could also help the Conservative Party to understand its competitors and get better prepared for the next election. 
+
+Many factors would influence the result. In this research, we recognize 5 predictors that would be used in our model analysis. These predictors served as our explanatory variables, including *age, gender, whether or not the individual think religion is important, whether or not the individual born in Canada, and the education level of the individual*. The *vote for Conservative Party* would be the response variable. We think these variables are reasonable in building the model and predicting the result. 
+
+According to McKinney[McKinney, 1944][3], strong circumstantial evidence shows that religion is a major influence in the choice of candidates in congressional elections. Although the situation is not the same, people with religious beliefs do view parties differently based not only on the policies but also on the suitability of the party’s overall behavior and their own religious requirements. Besides, we think different groups of education level may have a preference for different parties. A study by Milligan[Milligan et al., 2004][4] suggests more educated voters have better information on candidates and thus increase their ability to select leaders. The result of his analysis shows that an increase in educational attainment causes an increase in voter turnout in the U.S.A. Since Canada has a similar political system and situation to our neighbors, we believe that the result also apply. Basic personal information such as whether they were born in Canada and their gender and age would also influence the voting decision, thus we think these are important predictor in building the model.  
+
+The data we will use contains two parts. The first part comes from the 2019 Canadian election phone survey, which serves as survey data. It contains 4021 observations of 278 variables. The survey was conducted in 2019 via telephone, and the respondents were 18-year-old or older Canadian citizens who reside in one of the ten Canadian provinces[2019 Canadian Election Study - Phone Survey Technical Report.Pdf, 2020][5]. The survey asked for people’s basic information such as gender and age etc., as well as people’s opinions of different parties. Each variable represents one question in the survey. The second part comes from the General Social Survey, which serves as census data. It contains 20,602 observations of 461 variables. The data was collected in 2017 via telephone, and the respondents include all non-institutionalized persons 15 years of age and older who live in the ten Canadian provinces[Statistics Canada, 2020][6]. It includes important information such as income and fertility rate, which would help us better understand the characteristics of the target population and further stratify the data. 
+
+The Conservative Party got 33.74% in the last election[National Results Election Result Help | Elections Canada, 2021][7], and we predict that the voting percentage for Conservative will increase in the next election, and give it higher chance of winning the election. We hypothesize that the voting percentage of the Conservative Party will increase to around 40% in the next election. To conduct the research and test if our hypothesis hold, we will build a logistic regression model. As mentioned before, there will be 5 explanatory variables that we think will affect the vote, and the vote for Conservative Party would be the response variable. The reason for using the logistics regression is that the response variable is binary, and regression model could help us take the predictors into account and present us the voting percentage with these predictors, which aligned with our research question. 
+
+
+## Data
+
+This project will use two data set: census_data and survey_data.
+
+Firstly, the census_data comes from the 2017 Canadian general social surveys (GSS) data obtained from the U of T library, provided by Statistics Canada under the terms of the Data Liberation Initiative (DLI) license. "The Canadian general social survey is a cross-sectional telephone survey carried out by Statistics Canada, the universe to which generalizations are made is the adult population of Canada, and questions are designed by Statistics Canada with input from federal government departments and from the provinces. Each survey in the GSS series was designed to focus on one of five topic areas and these topics are repeated at roughly five-year intervals[Canadian General Social Survey - GSS, 2021][8]." The data has been preliminarily cleaned up by the file gss_clean.R.
+
+The cleaned up census_data consists of 20602 observations with 81 variables, which describes the personal information and social preferences of each observation (interviewee of the GSS), including the gender, age, family income, education level, and so on. This project will focus on only five variables among these 81 variables, which includes the age, gender, born place, education level, and religion preference (importance), as the predictors of the model, so these variables will be further cleaned below.
+
+Secondly, the survey_data comes from the 2019 Canadian Election Study (CES), which is an "annual survey of voting and other preferences and demographics which are thought to pertain to political behavior of Canadian voters". The data can be obtained on the Open Data Portal of Toronto Open Data[Stringer, 2021][9].
+
+The survey data consists of 4021 observations with 278 variables, where each variable contains the answers of one question in CES survey. The CES data describes each Canadian's "political behavior and attitudes, measuring preferences on key political issues such as free trade with the US, social spending and Quebec’s place in Canada; political actors, such as parties, party leaders and the government; and social concerns, such as women’s place in the home, support for immigration, and attitudes toward gays and lesbians; as well as political preferences and engagement[Canadian Election Study, 2019][10]." This project will focus on only six variables among these 278 variables, which includes the five predictors: age, gender, born place, education level, and religion preference (importance) that are same as in census data, and the response variable "if vote for Conservatives", so these six variables will be further cleaned below. 
+
+
+### Data Cleaning
+
+```{r, include = FALSE}
+census_data <- read_csv("gss_clean.csv")
+
+census_data <- census_data %>% 
+  mutate(age = round(age),
+         gender = sex,
+         birth_canada = case_when(place_birth_canada == "Born in Canada" ~ "Born in Canada",
+                                  place_birth_canada == "Born outside Canada" ~ "Born outside Canada",
+                                  place_birth_canada == "Don't know" ~ "Missing"),
+         education_level = case_when(education %in% c("College, CEGEP or other non-university certificate or di...", "High school diploma or a high school equivalency certificate", "Less than high school diploma or its equivalent", "Trade certificate or diploma") ~ "Below university",
+                                     education %in% c("Bachelor's degree (e.g. B.A., B.Sc., LL.B.)", "University certificate or diploma below the bachelor's level", "University certificate, diploma or degree above the bach...") ~ "Equal to or above university"),
+         religion_importance = case_when(regilion_importance %in% c("Very important", "Somewhat important") ~ "Important",
+                                         regilion_importance %in% c("Not very important", "Not at all important") ~ "Not important",
+                                         regilion_importance %in% c("Don't know") ~ "Missing")) %>%
+  filter(!is.na(age)) %>%
+  filter(gender != "Missing") %>%
+  filter(birth_canada != "Missing") %>%
+  filter(education_level != "Missing") %>%
+  filter(religion_importance != "Missing") %>%
+  select(age, gender, birth_canada, education_level, religion_importance)
+
+num_census <- nrow(census_data)
+```
+
+There exists three steps to further clean the census data after getting it from gss_clean.csv.
+
+Firstly, due to the goal of this project, only the five predictors (independent variables) introduced in Introduction section will be cleaned, the names of these five variables will be mutated or simplified, and the values in these variables will be processed for getting more accurate prediction results through the regression model.
+
+The first variable is the numeric predictor "age", it has been rounded to integer;
+
+The second variable is the categorical predictor "sex", it has been renamed to "gender" to match with the variable in survey data without other mutating.
+
+The third variable is the categorical predictor "place_birth_canada", it has been renamed to "birth_canada", which contains three levels: "Born in Canada", "Born outside Canada", and "Don't know", where the third level "Don't know" has been considered as missing value that will be dropped in further cleaning process.
+
+The fourth variable is the categorical predictor "education", it has been renamed to "education_level", which contains seven levels. Among them, the four levels: "College, CEGEP or other non-university certificate or diploma" level, "High school diploma or a high school equivalency certificate" level, "Less than high school diploma or its equivalent" level, "Trade certificate or diploma" level can be grouped into one level *"Below university"*, which means the education level of an observation is below university certificate; the other three levels: "Bachelor's degree (e.g. B.A., B.Sc., LL.B.)" level, "University certificate or diploma below the bachelor's level" level, "University certificate, diploma or degree above the bachelor's level" level can be grouped into another level *"Equal to or above university"*, which means the education level of an observation is equivalent to or above the university certificate. The integration to the levels of this variable will make the regression model be more clear and intuitive in prediction of the voting percentage.
+
+The fifth variable is the categorical predictor "regilion_importance", it has been renamed to "religion_importance" (correct spelling), which contains five levels. Among them, the "Very important" level and "Somewhat important" level can be simplified and grouped into one level *"Important"*; the "Not very important" level and "Not at all important" level can be simplified and grouped into another level: *"Not important"*; also, similarly, the "Don't know" level has been considered as missing value that will be dropped in further cleaning process.
+
+The second step is to drop out all the missing values of these four processed categorical variables, and drop all the NA values of the processed numeric variable "age" through the `filter()` function.
+
+The third step is to select these five variables(columns) from the cleaned original data to create a new data set that also called census_data, so the original census_data has been covered. Finally, the new census data set includes `r num_census` observations(rows) and 5 variables(columns), where the four categorical variables all remain only two levels.
+
+```{r, include = FALSE}
+survey_data <- read_csv("ces2019-phone_clean.csv")
+
+survey_data <- 
+  survey_data %>% 
+  mutate(age = 2019-q2,
+         gender = case_when(q3 == 1 ~ "Male",
+                            q3 == 2 ~ "Female",
+                            q3 %in% c(3, -8,-9) ~ "Missing"), # 3-other
+         birth_canada = case_when(q64 == 2 ~ "Born in Canada",
+                                  q64 %in% c(1,3,4,5,6,7,8,9,10,11,12,13) ~ "Born outside Canada",
+                                  q64 %in% c(-8,-9) ~ "Missing"),
+         education_level = case_when(q61 %in% c(1,2,3,4,5,6,7) ~ "Below university",
+                                     q61 %in% c(8,9,10,11) ~ "Equal to or above university",
+                                     q61 %in% c(-8,-9) ~ "Missing"),
+         religion_importance = case_when(q63 %in% c(1,2) ~ "Important",
+                                         q63 %in% c(3,4) ~ "Not important",
+                                         q63 %in% c(-8,-9) ~ "Missing"),
+         vote_Conservatives = case_when(q11 == 2 ~ "Yes",
+                                        q11 %in% c(1,3,4,5,6,7,8,9,10) ~ "No",
+                                        q11 %in% c(-8,-9) ~ "Missing")) %>% 
+  filter(!is.na(age)) %>%
+  filter(gender != "Missing") %>%
+  filter(birth_canada != "Missing") %>%
+  filter(education_level != "Missing") %>%
+  filter(religion_importance != "Missing") %>%
+  filter(vote_Conservatives != "Missing") %>%
+  mutate(vote_Conservatives = ifelse(vote_Conservatives == "Yes", 1, 0)) %>%
+  select(age, gender, birth_canada, education_level, religion_importance, vote_Conservatives)
+
+num_survey <- nrow(survey_data)
+```
+
+Similar to cleaning census data, there exists four steps to clean the survey data after getting it from ces2019-phone_clean.csv.
+
+Firstly, due to the goal of this project, only the five interested predictors (independent variables) and the response variable (dependent variable) will be cleaned, the six variables will be mutated and processed for more accurately building the regression model, also, the values and names of the five predictors should match with the same predictors in cleaned census data.
+
+The first variable is the numeric predictor "age", it corresponds to the variable "q2" (question 2) in survey data, which records the born year of each interviewee, thus, for getting the age of each observation, the difference between 2019 (the year of releasing the survey) and the born year of each observation has been calculated, and then been recorded in the new column "age".
+
+The second variable is the categorical predictor "gender", it corresponds to the variable "q3" (question 3) in survey data, which records the gender of each interviewee, and has 5 levels. Among them, the "1" level and "2" level represents "Male" and "Female" respectively, so they has been renamed to "Male" and "Female"; the "3" level represents "other" gender, the "-8" level represents "Refused" to answer, and the "-9" level represents "Don't know" the answer, which can all be considered as Missing value that will be dropped in further cleaning process.
+
+The third variable is the categorical predictor "birth_canada", it corresponds to the variable "q64" (question 64) in survey data, which records the born country of each interviewee, and has 15 levels. Among them, the level "2" represents the born country of an observation is Canada, so this level has been renamed to "Born in Canada" level; the level 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 represent the born country of an observation is not Canada, so these levels has been grouped into one level "Born outside Canada"; similarly, the "-8" level represents "Refused" to answer, and the "-9" level represents "Don't know" the answer, which can all be considered as Missing value that will be dropped in further cleaning process.
+
+The fourth variable is the categorical predictor "education_level", it corresponds to the variable "q61" (question 61) in survey data, which records the highest education level that each interviewee has completed, and has 13 levels. Among them, the level 1, 2, 3, 4, 5, 6, 7 can be grouped into one level "Below university", which means the education level of an observation is below university certificate; the level 8, 9, 10, 11 can be grouped into another level "Equal to or above university", which means the education level of an observation is equivalent to or above the university certificate; and similarly, the "-8" level represents "Refused" to answer, and the "-9" level represents "Don't know" the answer, which can all be considered as Missing value that will be dropped in further cleaning process.
+
+The fifth variable is the categorical predictor "religion_importance", it corresponds to the variable "q63" (question 63) in survey data, which records if the religion is important or not important to each interviewee in their life, and has 6 levels. Among them, "1" level and "2" level represent "Very important" and "Somewhat important", so they can be simplified and grouped into one level "Important"; "3" level and "4" level represent "Not very important" and "Not at all important", so they can be simplified and grouped into another level "Not important"; and similarly, the "-8" level represents "Refused" to answer, and the "-9" level represents "Don't know" the answer, which can all be considered as Missing value that will be dropped in further cleaning process.
+
+The sixth variable is the dependent variable "vote_Conservatives", which represents if each observation will vote for the Conservatives (Tory, PCs, Conservative Party of Canada). It corresponds to the variable "q11" (question 11) in survey data, which records the party each interviewee certain-likely or unlikely or already vote for, and has 12 levels. Among them, the level "2" represents the observation will vote for Conservatives, so it has been renamed to the level "Yes"; the level 1, 3, 4, 5 ,6, 7, 8, 9, 10 represent the observation will vote for another party, or not vote or spoil ballet, so these levels can all be considered as not vote for Conservatives, and be grouped into one level "No" of "vote_Conservatives"; and similarly, the "-8" level represents "Refused" to answer, and the "-9" level represents "Don't know" the answer, which can all be considered as Missing value that will be dropped in further cleaning process.
+
+The second step is to drop out all the Missing values of the four processed categorical predictors and the processed dependent variable, then drop all the NA values of the processed numeric predictor "age" through the `filter()` function.
+
+The third step is to mutate the names of two levels of the cleaned dependent variable "vote_Conservatives", where the "Yes" level has been renamed to numeric value 1, and the "No" level has been renamed to numeric value 0. This change will improve the convenience of fitting the logistic regression model and calculating the estimates. 
+
+The fourth step is to select these six variables(columns) from the cleaned original data to create a new data set that also called survey_data, so the original survey_data has been covered. Finally, the new survey data set includes `r num_survey` observations(rows), and 6 variables(columns), where the names and values (levels) of five predictors in survey data have matched with that in the census data.
+
+
+### Variable Description
+
+The cleaned census data contains 5 variables (predictors) and the cleaned survey data contains 6 variables (5 predictors + 1 response)
+
+\newpage
+
+#### vote_Conservatives
+
+The first variable is called "vote_Conservatives" in survey data, which describes if each observation will vote for the Conservatives (Tory, PCs, Conservative Party of Canada), where "vote" is recorded as 1, and "not vote" is recorded as 0. This variable is a numeric variable with only two values, so it can also be considered as a categorical variable with two levels. As mentioned above, "vote_Conservatives" is the dependent variable in regression model, whose plot and numeric summaries are shown below:
+
+
+```{r, echo=FALSE, fig.cap="Plot1. Bar plot of if vote for Conservatives", out.height="90%", out.width="90%"}
+survey_data %>% ggplot(aes(x = vote_Conservatives)) + geom_bar(fill = "dark red") + labs(x = "If vote for Conservatives or not (1 represents Yes, 0 represents No)", y = "Frequency", title = "Bar plot of if vote for Conservatives") + theme(plot.title = element_text(size = 12, face = "bold"))
+```
+
+```{r, include=FALSE}
+vote_count <- data.frame(table(survey_data$vote_Conservatives))
+vote <- vote_count[2,2]
+not_vote <- vote_count[1,2]
+vote_difference <- not_vote - vote
+vote_prop <- vote / (vote + not_vote)
+```
+
+
+According to the bar-plot(plot 1), the number of interviewees who vote for Conservatives is `r vote`, which is relatively lower than the number of interviewees who not vote for Conservatives (`r not_vote`) with difference of `r vote_difference`. Thus, the voting percentage of Conservatives in the survey data is `r vote_prop`, which is higher than the voting percentage obtained by Conservatives in the last election in 2021 (33.74%), so it seems to support the statement that the voting percentage of Conservatives will increase from the last election to next election, supposed in the hypothesis in Introduction Section, however, more accurate evidence is needed. Thus, this project will fit a related logistic regression model for making the prediction of the voting proportion of the Conservatives to provide more accurate evidence for this research question.
+
+
+
+#### age
+
+The second variable is called "age", which describes the age of each observation in 2017 in census data and the age of each interviewee in 2019 in survey data. This variable is a numeric discrete variable, whose all values are integers. As mentioned above, "age" is the numeric predictor in regression model, whose plot and numeric summaries are shown below:
+
+\newpage
+
+```{r, echo=FALSE, fig.cap="Plot2. Histogram of Age"}
+census_age <- census_data %>% ggplot(aes(x = age)) + geom_histogram(fill = "dark red", color = "black", bins = 20) + labs(x = "Age of each observation in 2017", y = "Frequency", title = "Histogram of Age in census data") + theme(plot.title = element_text(size = 10, face = "bold"))
+
+survey_age <- survey_data %>% ggplot(aes(x = age)) + geom_histogram(fill = "dark red", color = "black", bins = 20) + labs(x = "Age of each interviewee in 2019", y = "Frequency", title = "Histogram of Age in survey data") + theme(plot.title = element_text(size = 10, face = "bold"))
+
+census_age | survey_age
+```
+
+The Plot2 contains two histograms of the age variable in survey data and census data individually. According to Plot2, the distribution of the age variable in census data is not symmetric, but a little left-skewed with mode at around 80 years old and second mode at around 60-65 years old; also, the distribution of the age variable in survey data is nearly symmetric with little right-skewness, whose mode is at around 60 years old. Compared to two histograms, the different modes of age in two data set shows that the average age of observations in census data seems to be higher than the average age of observations in survey data, which may lower the usability of the model fitted by survey data on the prediction to census data. However, the difference in average should be supported through numeric summaries below: 
+
+```{r, echo=FALSE, fig.cap="table1"}
+
+summaries_age_census <- census_data %>% summarise(mean = mean(age),
+                                        median = median(age),
+                                        sd = sd(age),
+                                        min = min(age),
+                                        max = max(age))
+summaries_age_census <- data.frame(summaries_age_census)
+
+summaries_age_survey <- survey_data %>% summarise(mean = mean(age),
+                                        median = median(age),
+                                        sd = sd(age),
+                                        min = min(age),
+                                        max = max(age))
+summaries_age_survey <- data.frame(summaries_age_survey)
+
+
+name <- c("mean", "median", "sd", "min", "max")
+value_census <- c(summaries_age_census[1,1], summaries_age_census[1,2], summaries_age_census[1,3], summaries_age_census[1,4], summaries_age_census[1,5])
+value_survey <- c(summaries_age_survey[1,1], summaries_age_survey[1,2], summaries_age_survey[1,3], summaries_age_survey[1,4], summaries_age_survey[1,5])
+
+knitr::kable(tibble(name, value_census, value_survey), caption = "Numeric summary of age in census data and survey data")
+```
+
+According to the numeric summary table(Table1), the mean of age in census data is `r summaries_age_census[1,1]`, which is close to the mean of age in survey data (`r summaries_age_survey[1,1]`), so there not exists obvious difference in average of age in two data, which means the usability of the model will not be limited by this variable. 
+Also, the median of age in census data is `r summaries_age_census[1,2]`, which is also close to the median of age in survey data (`r summaries_age_survey[1,2]`). Thus, the means and medians of age in two data are all lower than the modes of age shown in the histograms (Plot2).
+Moreover, the standard deviation of age in census data and survey data is `r summaries_age_census[1,3]` and `r summaries_age_survey[1,3]` respectively, which are both relatively low compared to their own mean. 
+In addition, the range of the age in survey data is from `r summaries_age_survey[1,4]` to `r summaries_age_survey[1,5]`, which is relatively wider than the range of age in census data (`r summaries_age_census[1,4]` to `r summaries_age_census[1,5]`)
+
+
+#### gender
+
+The third variable is called "gender", which describes the born gender of each observation in both survey data and census data. This variable is a categorical binary variable with only two levels. As mentioned above, "gender" is one of the categorical predictors in regression model, whose plot and numeric summaries are shown below:
+
+```{r, echo=FALSE, fig.cap="Plot3. Barplot of gender", out.height="92%", out.width="92%"}
+census_gender <- census_data %>% ggplot(aes(x = gender)) + geom_bar(fill = "dark red") + labs(x = "Gender of each observation", y = "Frequency", title = "Barplot of gender in census data") + theme(plot.title = element_text(size = 10, face = "bold"))
+
+survey_gender <- survey_data %>% ggplot(aes(x = gender)) + geom_bar(fill = "dark red") + labs(x = "Gender of each interviewee", y = "Frequency", title = "Barplot of gender in survey data") + theme(plot.title = element_text(size = 10, face = "bold"))
+
+census_gender | survey_gender
+```
+
+```{r, include=FALSE}
+gender_count_census <- data.frame(table(census_data$gender))
+male_census <- gender_count_census[2,2]
+female_census  <- gender_count_census[1,2]
+gender_difference_census <- abs(female_census - male_census)
+
+gender_count_survey <- data.frame(table(survey_data$gender))
+male_survey <- gender_count_survey[2,2]
+female_survey  <- gender_count_survey[1,2]
+gender_difference_survey <- abs(female_survey - male_survey)
+```
+
+According to the bar-plot(Plot 3), in the census data, the number of observations with female gender is `r female_census`, which is higher than the number of observations with male gender (`r male_census`). The difference between the numbers of two genders in census data is `r gender_difference_census`, which is relatively lower compared to the total number of observations in census data (`r num_census`). 
+By contrast, in the survey data, the number of observations with female gender is `r female_survey`, which is lower than the number of observations with male gender (`r male_survey`). The difference between the numbers of two genders in survey data is `r gender_difference_survey`, which is also relatively lower compared to the total number of observations in survey data (`r num_survey`). 
+
+
+#### religion_importance
+
+The fourth variable is called "religion_importance", which describes if the religion is important or not important to each observation(interviewee) in their life in both survey data and census data. This variable is also a categorical binary variable with only two levels. As mentioned above, "religion_importance" is one of the categorical predictors in regression model, whose plot and numeric summaries are shown below:
+
+\newpage
+
+```{r, echo=FALSE, fig.cap="Plot4. Barplot of religion importance"}
+census_religion <- census_data %>% ggplot(aes(x = religion_importance)) + geom_bar(fill = "dark red") + labs(x = "If religion important to an observation", y = "Frequency", title = "Barplot of religion importance in census data") + theme(plot.title = element_text(size = 8, face = "bold"))
+
+survey_religion <- survey_data %>% ggplot(aes(x = religion_importance)) + geom_bar(fill = "dark red") + labs(x = "If religion important to a interviewee", y = "Frequency", title = "Barplot of religion importance in survey data") + theme(plot.title = element_text(size = 8, face = "bold"))
+
+census_religion | survey_religion
+```
+
+```{r, include=FALSE}
+religion_count_census <- data.frame(table(census_data$religion_importance))
+notimportant_census <- religion_count_census[2,2]
+important_census  <- religion_count_census[1,2]
+religion_difference_census <- abs(notimportant_census - important_census)
+
+religion_count_survey <- data.frame(table(survey_data$religion_importance))
+notimportant_survey <- religion_count_survey[2,2]
+important_survey  <- religion_count_survey[1,2]
+religion_difference_survey <- abs(notimportant_survey - important_survey)
+```
+
+According to the bar-plot(Plot 4), in the census data, the number of observations who think religion is important to them is `r important_census`, which is much higher than the number of observations who think religion is not important to them (`r notimportant_census`). The difference between the sizes of two groups with different religion importance in census data is `r religion_difference_census`, which is not too small or too large compared to the total number of observations in census data. 
+Also, in the survey data, the number of observations who think religion is important to them is `r important_survey`, which is also much higher than the number of observations who think religion is not important to them (`r notimportant_survey`). The difference between the sizes of two groups with different religion importance in survey data is `r religion_difference_survey`, which is relatively too large compared to the total number of observations in survey data. Thus, it means that most of people think religion is important in their life in both census data and survey data.
+
+
+#### education_level
+
+The fifth variable is called "education_level", which describes if the highest education level of each observation(interviewee) is below the university certificate or is equivalent to or above the university certificate in both survey data and census data. This variable is also a categorical binary variable with only two levels. As mentioned above, "education_level" is one of the categorical predictors in regression model, whose plot is shown in the Appendix and numeric summaries are shown below:
+
+```{r, include=FALSE}
+education_count_census <- data.frame(table(census_data$education_level))
+equal_above_census <- education_count_census[2,2]
+below_census  <- education_count_census[1,2]
+education_difference_census <- abs(below_census - equal_above_census)
+
+education_count_survey <- data.frame(table(survey_data$education_level))
+equal_above_survey <- education_count_survey[2,2]
+below_survey  <- education_count_survey[1,2]
+education_difference_survey <- abs(below_survey - equal_above_survey)
+```
+
+According to the bar-plot(Plot 5) in Appendix, in the census data, the number of observations with education level below the university certificate is `r below_census`, which is much higher than the number of observations with education level equal to or above the university certificate  (`r equal_above_census`). The difference between the sizes of two groups with different education levels in census data is `r education_difference_census`, which is relatively large compared to the total number of observations in census data. Thus, it means most of people in census data have relatively low education level.
+However, in the survey data, the number of observations with education level below the university certificate is `r below_survey`, which is very close to but a little lower than the number of observations with education level equal to or above the university certificate  (`r equal_above_survey`). The difference between the sizes of two groups with different education levels in survey data is `r education_difference_survey`, which is so small compared to the total number of observations in survey data that can even be ignored. Thus, it means over half of interviewees in survey data have relatively high education level.
+
+
+#### birth_canada
+
+The last variable is called "birth_canada", which describes if the born place of each observation(interviewee) is inside the Canada or outside the Canada (born in Quebec will be considered as born outside Canada) in both survey data and census data. This variable is a categorical binary variable with only two levels. As mentioned above, "birth_canada" is one of the categorical predictors in regression model, whose plot is shown in the Appendix and numeric summaries are shown below:
+
+```{r, include=FALSE}
+birth_count_census <- data.frame(table(census_data$birth_canada))
+out_census <- birth_count_census[2,2]
+in_census  <- birth_count_census[1,2]
+birth_difference_census <- abs(in_census - out_census)
+
+birth_count_survey <- data.frame(table(survey_data$birth_canada))
+out_survey <- birth_count_survey[2,2]
+in_survey  <- birth_count_survey[1,2]
+birth_difference_survey <- abs(in_survey - out_survey)
+```
+
+According to the bar-plot(Plot 6) in Appendix, in the census data, the number of observations who born inside Canada is `r in_census`, which is much higher than the number of observations who born outside Canada (`r out_census`). The difference between the sizes of two groups with different born places in census data is `r birth_difference_census`, which is very large compared to the total number of observations in census data. Thus, it means most of people in census data born inside the Canada.
+What's more, in the survey data, the number of observations who born inside Canada is `r in_survey`, which is also much higher than the number of observations who born outside Canada (`r out_survey`). The difference between the sizes of two groups with different born places in survey data is `r birth_difference_survey`, which is still very large compared to the total number of observations in survey data. Thus, it means most of people in survey data also born inside the Canada.
+
+In conclusion, in the Data Section, the data selection process and data cleaning process has been introduced, and the meaning, the type of each variable used in this project has been interpreted with plots and numeric summaries.
+
+All analysis for this section was programmed using `R version 4.1.1`.
+
+
+## Methods
+
+With the ultimate goal of deriving the prediction of the popular vote for the next Canadian federal election, methodologies of logistic regression model and post-stratification are used for the following analysis. Recall, our hypothesis predicts that the voting proportion for Conservative party will increase to around 40% in the next Canadian federal election specifically with the interference of our selected predictors contributing to the outcome, compared to the 33.74% support rate in the last one[National Results Election Result Help | Elections Canada, 2021][7].
+
+A logistic regression is used to estimate the coefficients of parameters of the logistic model. With many similarities to the mechanisms in multiple linear regression, logistic regression has the exception of including binary dependent variables in its model. By constructing the logistic regression model, we are able to obtain the influence of each predictor on the odds ratio of our variable of interest, that is, the dependent variable $Y$. A hypothesis test is performed to testify if all of the predictors are significant to the model. P values are examined for the significance of each variable.
+
+Post-stratification, on the other hand, involves adjusting the weights of estimated results. Within post-stratification, a stratified sample is derived based on the estimates of parameters, with multiple combinations of cells[Kolenikov, 2016][11]. It essentially estimates the outcome for each cell, and thus the cells are mutually exclusive. Through this method, we are able to derive the exact proportion of votes for Conservative party based on the predictors, and further extrapolate the popular vote of the total population based on demographics[Caetano, 2021][12].
+
+
+### Model Specifics
+
+We want to ensure that our sample data has met particular criteria that are appropriate for the methods to apply. While some in common with linear regression, which has assumptions of linearity, independence, homoscedasticity, and normality, logistic regression possesses a few more different ones. To elaborate, logistic regression includes a binary response variable, and potential binary or categorical predictors. It assumes the independence of the sample data, that is, there should be no correlation or repetition of each observation in the sample. The predictors should also be uncorrelated, and linearly related to the log odds of the result[Jankovic, 2021][13]. Precise sample data of relatively large size is also assumed. If the sample size is less than the number of independent variables, there may exist overfitting. Different from linear regression, logistic regression has no restrictive assumption on the distribution of the variables, but this can be further discussed with the utilization of post-stratification. 
+
+Recall that the observations in our sample data containing Canada’s census information in 2019 has sufficient sample size, and the observations are also independent. Our outcome of interest is a binary response variable, which we aim to predict the probability that Conservative will win popular votes through calculating the logarithm of the odds(log odds, $\frac{p}{1-p}$) based on estimates[Jankovic, 2021][13]. We have also selected independent variables of both numerical and categorical (i.e. age, gender, educational level), to which those categorical variables are converted into binary predictors in the previous section to be fitted in the model, thus a logistic regression model can be used for further analysis. In this case, it is used to illustrate the proportion of voters with specific attributes that support Conservative party in the next Canadian federal election. 
+
+
+$$\begin{array}{c}
+\log \left(\frac{p}{1-p}\right)=\beta_{0}+\beta_{1} x_{\text {age }}+\beta_{2} x_{\text {Male }}\\
++\beta_{3} x_{\text {Born outside Canada}}+\beta_{4} x_{\text {Equal to or above university}}+\beta_{5} x_{\text {Not important}}
+\end{array}$$
+
+
+To elaborate on the mathematical equation,we have several parameters: 
+
+- $p$ refers to the probability of having a popular vote on Conservative party based on voters in the sample 
+
+- $\beta_0$ refers to the intercept of the model when all other categorical binary predictors are 0 and the numeric predictor age is zero, specifically, the log of odds of voting for Conservative party when a female participant is born outside Canada, below university level of education, and has no important religion. However, $\beta_0$ is actually meaningless because the predictor "age" cannot be zero for an observation in real life.
+
+- $\beta_1$ represents the slope of age in the model. It represents the expected change in log odds of the outcome with every one unit increase in variable age. As one year increases in age, we expect a $\beta_1$ change in log odds voting for the Conservative party.
+
+- $\beta_2$ refers to the mean difference in log odds voting for Conservative party between male and female with the presence of other predictors being fixed.
+
+- $\beta_3$refers to the mean difference in log odds voting for Conservative party between participants borned in and outside Canada with the presence of other predictors being fixed.
+
+- $\beta_4$refers to the mean difference in log odds voting for Conservative party between participants who obtain certificates on or above university level and those below with the presence of other predictors being fixed.
+
+- $\beta_5$refers to the mean difference in log odds voting for Conservative party between participants who have an important religion and those who don’t with the presence of other predictors being fixed.
+
+
+### Post-Stratification 
+
+Proceeding to the next step, we will use post-stratification for the following analysis. As a statistical method, post-stratification deals with the unequal allocation of cells to the survey attributes by reweighting the average of estimates, and thus helps reduce variance[Caetano, 2021][12]. 
+
+Specific procedure to this method starts by obtaining the logistic regression model with subgroups on independent variables of age, gender, birth location, education level, and importance of religion in the survey. The sample data will be allocated into these subgroups, or what is called “cells”. The cells are constructed based on the combinations of our selected attributes of demographics as listed previously, and the weighted total within each cell is equal to the total population[Poststratification - an Overview | ScienceDirect Topics, n.d.][14]. In our case, age is a numerical variable and the others are all binary responses, thus the cell of age contains categories of all ages presented, cell of gender contains 2 categories of male and female, cell of birth location contains 2 categories of born in Canada and born outside Canada, cell of educational level contains 2 categories of below university level and equal/above university level, and cell of importance of religion contains 2 categories of important and not important, overall partitioning the sample into 5 cells. We will then estimate the proportion of participants voting for Conservative party within each distinct cell. From this point forward, we are able to derive the average estimate with adjusted weight from all potential cells. This is done by multiplying the estimate from each cell by its corresponding population size, then summarizing the total and dividing it by the total population size at the end. Post-stratification can be utilized to improve the impact of strata with a relatively larger population to the estimated results. It can also reflect the distribution of the independent variables (data within each cell of attribute) in the sample.
+
+The mathematical equation is shown as follows:
+$$
+\hat{y}^{P S}=\frac{\sum N_{j} \widehat{y}_{j}}{\sum N_{j}}
+$$
+
+$\widehat{y}_{j}$ represents the estimate in each cell
+
+$N_{j}$ represents the population size of the $j_{th}$ cell based off demographics.
+
+In conclusion, in the Method Section, the meaning of each parameter of the logistic regression model has been introduced as well as the assumptions, and the post-stratification process has been described.
+
+
+## Results 
+
+### logistics regression
+
+```{r, echo=FALSE, fig.cap="table2"}
+
+# Creating the Model
+model <- glm(vote_Conservatives ~ age + gender + birth_canada + education_level + religion_importance , data=survey_data, family="binomial")
+knitr::kable(tidy(model), caption = "Numeric summary of logistic regression model")
+summary_table <- data.frame(tidy(model))
+```
+
+According to the Table 2, the mathematical equation of the logistic regression model for doing prediction can be written as:
+
+$$\begin{array}{c}
+\log(\frac{\hat{p}}{1-\hat{p}})=-0.3899868 +0.0023056 x_{\text{age}}+0.6131498 x_{\text{Male}}- 0.4931382 x_{\text {Born outside Canada}}\\
+-0.4373457x_{\text {Equal to or above university}}-0.5267286x_{\text {Not important}}
+\end{array}$$
+
+According to the table, the intercept is `r summary_table[1,2]`, which is meaningless since the predictor age cannot be 0. 
+
+The coefficient of predictor age ($x_{\text{age}}$) is `r summary_table[2,2]`, the positive coefficient means when the age increases, the log of odds will increase, then the probability of voting for Conservatives will increase, thus, the observation with higher age is more likely to vote for Conservatives.
+
+The coefficient of predictor gender ($x_{\text{Male}}$) is `r summary_table[3,2]`, the positive coefficient means the observations with gender as male have higher log of odds, with the presence of other predictors being fixed, thus, the male observation is more likely to vote for Conservatives than the female.
+
+The coefficient of predictor birth_canada ($x_{\text {Born outside Canada}}$) is `r summary_table[4,2]`, the negative coefficient means the observations who born outside Canada have lower log of odds, with the presence of other predictors being fixed, thus, the observation who born outside Canada is less likely to vote for Conservatives than the observation who born inside Canada.
+
+The coefficient of predictor education_level ($x_{\text {Equal to or above university}}$) is `r summary_table[5,2]`, the negative coefficient means the observations whose education level is equal to or above university have lower log of odds, with the presence of other predictors being fixed, thus, the observation with relatively higher education level (equal to or above university) is less likely to vote for Conservatives than the observation with relatively lower education level (below university).
+
+The coefficient of predictor religion_importance ($x_{\text {Not important}}$) is `r summary_table[6,2]`, the negative coefficient means the observations who think religion is not important have lower log of odds, with the presence of other predictors being fixed, thus, the observation who thinks religion is not important is less likely to vote for Conservatives than the observation who thinks religion is important.
+
+Overall, we are able to obtain a basic reflection of how each factor is influencing the probability of voting for Conservatives. Older participants and Male participants are more likely to vote for Conservatives, while those who born outside Canada, or have degree equal to or above university, or think religion is not important are less likely to vote for Conservatives. This can be a reference to the concerned authorities to further investigate eligible participants with certain attributes that are favorable or unfavorable to their specific party, and potentially enhance their strategies for desired result.
+
+What's more, for testing the statistical significance of each predictor, the hypothesis test is made for each predictor with null hypothesis that the coefficient of a predictor is zero ($H_0:\beta_i=0$). And then, we get the p-value, which can be defined as "the probability of obtaining test results at least as extreme as the results actually observed, under the assumption that the null hypothesis is correct" (Wikipedia, p-value)[15]. If the p-value of the coefficient of a predictor is less than 0.05, the common cut-off, there will exist significant evidence to reject the null hypothesis that $H_0:\beta_i=0$, which means this predictor is statistically significant.\
+According to Table2, we can find that the predictor age is not statistically significant with `r summary_table[2,5]` p-value, but other predictors, gender, whether born in Canada, education level, and religion importance are all statistically significant with p-value < 0.05. However, since the goal of the project is to make prediction of voting percentage, as long as we can use these predictors to do the prediction, the significance level of predictors does not so matter.
+
+### post-stratification
+
+Here we will perform the post-stratification calculation.
+
+First, by using logistics regression model to sort out different cells, we can have a preliminary understanding of each cell. First six cells are shown below.
+```{r, echo=FALSE, fig.cap="table3"}
+
+census_data_counts <- census_data %>% 
+  group_by(age, gender, birth_canada, education_level, religion_importance) %>% 
+  summarise(n=n())
+
+census_data_counts$estimate <-
+  model %>%
+  predict(newdata = census_data_counts, type = "response")
+
+census_data_counts <- ungroup(census_data_counts)
+knitr::kable(head(census_data_counts, n= 6), caption = "First six cells of model")
+```
+
+As we can see from table3,  we start from the youngest age. We first keep the age of each cell the same(15 years old), then, we control three of the four predictors in turn to be consistent and make the remaining one different. As you can see from the table3, we start from 15 years old and keep gender, whether birth in Canada and education level the same, and let two cells religion importance be different(one is important and the other is not important). After all 15 years old cells were successfully grouped, we start to group all 16 years old people to different cells, and so on... Because what we need is the number of people in each cell and the corresponding estimated value, we will have a new table ,which only includes the values of "n" and "estimate", shown below.
+
+
+```{r, echo=FALSE, fig.cap="table4"}
+detail_full <- census_data_counts %>% select(n, estimate)
+detail_10row <- census_data_counts %>% select(n, estimate) %>% head(n=10)
+knitr::kable(detail_10row, caption = "First ten groups of n and estimate")
+```
+
+```{r, include=FALSE}
+total_groups<- census_data_counts %>% summarise(n=n())
+```
+
+As we can see from table4, now we have the number of people of each cell and its corresponding estimate. After having this new table, we sum up the number of people in each cell to get the total number of people in all cells, which is `r total_groups`. \
+
+```{r, echo=FALSE, fig.cap="table5"}
+estimation <- census_data_counts %>% 
+  mutate(predict_prop = estimate*n) %>% ungroup() %>% 
+  summarise(predict = sum(predict_prop)/sum(n))
+knitr::kable(estimation, caption = "Prediction Table")
+predict_value <- estimation$predict
+predict_value <- percent(predict_value, accuracy = 0.00001)
+```
+
+By multiplying estimated value of each cell and corresponding number of people, we have predict proportion of each cell. According to table5, we know that by adding up all predict proportion and dividing by the total number of people of all cells, we finally have the predict value, which is `r predict_value`. Now we predict that `r predict_value` of people will vote for the Conservative Party in next election. By searching the percentage of popular vote of Conservative party in 2021, 2019, 2015 and 2011, we find that the percentage of popular vote of Conservative party on 2011 is 39.6%, the percentage of popular vote of Conservative party on 2015 is 31.9%, the percentage of popular vote of Conservative party on 2019 is 34.3% and the percentage of popular vote of Conservative party in 2021 is 33.74%[National Results Election Result Help | Elections Canada, 2021][7] [Heard, 2020][16]. By comparing these years percentage of popular vote of Conservative party, we can find that comparing with the 39.6% popular vote of Conservative party in 2011, the overall percentage of popular vote of Conservative party has decreased although there were small increase from 2015 to 2019. However, as we predicted, there will be `r predict_value` popular vote of Conservative party in next election, which can be called a big increase comparing to popular vote of Conservative party in 2011. We think this prediction is reasonable because by comparing with 2015 and 2019 election party, we can find that liberal party has lost about 30 elected members while conservative party gained about 20 new elected members. There was small increase in the number of elected members of liberal party in 2021 but it is because Trudeau held an early election and the election was mainly about minority government. Overall, conservative party is more likely to gain more members in next election, so it is reasonable that the voting percentage of the Conservative Party will increase to around 40%.
+
+In conclusion, in the Result Section, the output of the logistic regression model has been interpreted, and the voting percentage for Conservatives party has been predicted through the model to answer the research question of this project.
+
+All analysis for this section was programmed using `R version 4.1.1`.
+
+
+
+## Conclusion
+
+Since in the introduction part we hypothesized that the voting percentage of the Conservative Party will increase to around 40% in the next election and our research goal is to test if our hypothesis hold, by comparing the p-value of each predictor with common significant level 0.05, we found that the predictor, age, is not significant, but other predictors, gender, whether or not the individual born in Canada, the education level of the individual, and whether or not the individual think religion is important are significant. For methods and results, we first used logistics regression to set the prediction model, that five common variables are age, gender, whether or not the individual think religion is important, whether or not the individual born in Canada, and the education level of the individual. Then, we found each significance level(p-value) of these five common variables. We used post-stratification to do predictions. By first starting picking all 15 years old individuals. Then, we control three of other four predictors in turn to be consistent and make the remaining one different. Through this way we grouped all individuals into different cells with corresponding estimates. By having the number of individuals in each cell and corresponding estimates, multiplying estimated value of each cell and corresponding number of people, we have predict proportion of each cell. Finally, we summed all predict proportion and divided by the number of cells to get the average predict proportion, `r predict_value`, which proves that our hypothesis, the voting percentage of the conservative Party will increase to around 40% in the next election, is true. By comparing with the percentage of popular vote of conservative party in 2021(33.74%), 2019(34.3%), 2015(31.9%) and 2011(39.6), it is obvious that our prediction indicates that there will be a huge increase in the voting percentage of the Conservative Party in next election[National Results Election Result Help | Elections Canada, 2021][7] [Heard, 2020][16]. This could because the number of liberal party elected members decreased 27 while the number of conservative party elected members increased 21 from 2015 to 2019 election party[National Results Election Result Help | Elections Canada, 2021][7]. Although there is small increase in the number of liberal party elected members in 2021 election party, but liberal party has lost the majority government in 2019 and the early election of Trudeau was about minority government. Also, because 2021 election party was mailed ballot, it will have a certain impact on the result. Therefore, by observing the big trends from 2015 to 2021, we believe it is reasonable that the voting percentage of the Conservative Party will increase to around 40% in the next election.
+
+
+### Weaknesses and future step
+
+This prediction result gives us a rough basis, but there is weakness inside, such as common variables may not enough to make predictions more accurate because there are not many usable variables after cleaning the data. Also, it is impossible to predict the voting percentage of the conservative Party in next election accurately just by analyzing five common variables. More common variables make the model more comprehensive, which leads to a more accurate result. Furthermore, there are too many factors that can impact predicting the voting percentage of the conservative Party in next election. Even events that occur the day before the next election may affect the outcome of the election. So, we predicted the next election result so long before the next election, which must be inaccurate. \
+
+Regarding the weaknesses of this analysis, it is hoped that the method of choosing predictors and the model type can be enhanced. We selected five variables with the expectation of them contributing to the model where significant, meaningful, and effective conclusions can be drawn. However, there could be other predictors from the survey data that can also explain the outcome significantly, but not included in the model. The categorical variables are converted into binary variables for the sake of fitting them into the logistic model, but study on how each category within each variable is affecting the outcome can also be interesting and useful, as it is more detailed. \
+
+Moreover, based on research we are able to observe an overall declining trend of Conservative party’s support votes over the past decade (from 2011 to 2021). As we derived from this analysis, there is expected to be approximately 40.41% of participants with selected attributes who will vote for Conservative in the 2025 federal election. Such a relatively large increase of support rate can be further investigated for its reason and contributing factors, as more advanced methods can be adopted. Recall the overall objective of the study is to predict the popular vote of the next Canadian federal election, with our interest in examining the performance of Conservative party, hypothesizing an increase of support vote compared to previous elections. As a result, indeed the proportion of Conservative supporters based on certain attributes has increased to about 40.41%. However, it is hard to predict whether it will be the popular vote of the election since analysis for other parties are absent. Thus for the next step, it will be more comprehensive if one or more models can be constructed for other parties, and comparison between them may yield more thorough conclusions. \
+
+To sum up, this research used many statistics methods, like logistics regression and post-stratification to analyze data and do the prediction, predicted that `r predict_value` of people will vote for the Conservative Party, but there is still parts can be improved to get better results in the future. \
+
+All analysis for this report was programmed using `R version 4.1.1`.
+
+
+\newpage
+
+## Appendix
+
+### Plot 5
+```{r, echo=FALSE, fig.cap="Plot5. Barplot of education level"}
+census_education_level <- census_data %>% mutate(education_level = ifelse(education_level == "Below university", "Below university", "Equal or above university")) %>% ggplot(aes(x = education_level)) + geom_bar(fill = "dark red") + labs(x = "Education level of each observation", y = "Frequency", title = "Barplot of education level in census data") + theme(plot.title = element_text(size = 9, face = "bold"))
+
+survey_education_level <- survey_data %>% mutate(education_level = ifelse(education_level == "Below university", "Below university", "Equal or above university")) %>% ggplot(aes(x = education_level)) + geom_bar(fill = "dark red") + labs(x = "Education level of each interviewee", y = "Frequency", title = "Barplot of education level in survey data") + theme(plot.title = element_text(size = 9, face = "bold"))
+
+census_education_level | survey_education_level
+```
+
+
+\newpage
+
+### Plot 6
+```{r, echo=FALSE, fig.cap="Plot6. Barplot of born place"}
+census_birth_canada <- census_data %>% ggplot(aes(x = birth_canada)) + geom_bar(fill = "dark red") + labs(x = "Born place of each observation", y = "Frequency", title = "Barplot of born place in census data") + theme(plot.title = element_text(size = 9, face = "bold"))
+
+survey_birth_canada <- survey_data %>% ggplot(aes(x = birth_canada)) + geom_bar(fill = "dark red") + labs(x = "Born place of each interviewee", y = "Frequency", title = "Barplot of born place in survey data") + theme(plot.title = element_text(size = 9, face = "bold"))
+
+census_birth_canada | survey_birth_canada
+```
+
+
+
+\newpage
+
+## Bibliography
+
+1. *Why do we care about elections?* (2021, September 21). Open Election Data Initiative. [https://openelectiondata.net/en/guide/electoral-integrity/why-we-care/](https://openelectiondata.net/en/guide/electoral-integrity/why-we-care/). (Last Accessed: November 3, 2021) 
+
+2. The Associated Press. (2021, September 21). *Justin Trudeau’s Liberal Party wins Canada election, but misses majority*. NBC News. [https://www.nbcnews.com/news/world/canadians-re-elect-justin-trudeau-s-liberal-party-n1279687](https://www.nbcnews.com/news/world/canadians-re-elect-justin-trudeau-s-liberal-party-n1279687). (Last Accessed: November 3, 2021) 
+
+3. McKinney, M. M. (1944). Religion and Elections. *The Public Opinion Quarterly*, 8(1), 110–114. [http://www.jstor.org/stable/2745694](http://www.jstor.org/stable/2745694). (Last Accessed: November 3, 2021) 
+
+4. Milligan, K., Moretti, E., & Oreopoulos, P. (2004). Does education improve citizenship? Evidence from the United States and the United Kingdom. *Journal of Public Economics*, 88(9–10), 1667–1695. [https://doi.org/10.1016/j.jpubeco.2003.10.005](https://doi.org/10.1016/j.jpubeco.2003.10.005). (Last Accessed: November 3, 2021)
+
+5. Stephenson, Laura B; Harell, Allison; Rubenson, Daniel; Loewen, Peter John, 2020, "2019 Canadian Election Study - Phone Survey Technical Report.pdf", *2019 Canadian Election Study - Phone Survey*, [https://doi.org/10.7910/DVN/8RHLG1/1PBGR3](https://doi.org/10.7910/DVN/8RHLG1/1PBGR3]), Harvard Dataverse, V1. (Last Accessed: November 3, 2021)
+
+6. Statistics Canada. (2020, April). *2017 General Social Survey (GSS): Families Cycle 31 - User’s Guide*. CHASS. [https://sda-artsci-utoronto-ca.myaccess.library.utoronto.ca/sdaweb/dli2/gss/gss31/gss31/more_doc/GSS31_User_Guide.pdf](https://sda-artsci-utoronto-ca.myaccess.library.utoronto.ca/sdaweb/dli2/gss/gss31/gss31/more_doc/GSS31_User_Guide.pdf). (Last Accessed: November 3, 2021)
+
+7. *National Results Election Result Help | Elections Canada*. (2021, September 20). Elections Canada. [https://www.elections.ca/enr/help/national_e.htm](https://www.elections.ca/enr/help/national_e.htm). (Last Accessed: November 4, 2021) 
+
+8. U of T. (2017). *Canadian General Social Survey - GSS*. Chass. Retrieved November 5, 2021, from [http://homes.chass.utoronto.ca/%7Ecjones/pub/cangss.html](http://homes.chass.utoronto.ca/%7Ecjones/pub/cangss.html). (Last Accessed: November 5, 2021) 
+
+9. Stringer, A. G. A. A. (2021, January 20). *Chapter 16 Short tutorial on pulling data for Assignment 1 | Probability, Statistics, and Data Analysis*. Github. Retrieved November 5, 2021, from [https://awstringer1.github.io/sta238-book/section-short-tutorial-on-pulling-data-for-assignment-1.html#section-canadian-election-study](https://awstringer1.github.io/sta238-book/section-short-tutorial-on-pulling-data-for-assignment-1.html#section-canadian-election-study). (Last Accessed: November 5, 2021) 
+
+10. Canadian Election Study. (2019). *Welcome to the 2019 Canadian Election Study*. CES-EEC. Retrieved November 5, 2021, from [http://www.ces-eec.ca/](http://www.ces-eec.ca/). (Last Accessed: November 5, 2021) 
+
+11. Kolenikov, S. (2016, August 1). *Post-stratification or non-response adjustment? | Published in Survey Practice*. Surveypractice. [https://www.surveypractice.org/article/2809-post-stratification-or-non-response-adjustment](https://www.surveypractice.org/article/2809-post-stratification-or-non-response-adjustment). (Last Accessed: November 3, 2021)
+
+12. Caetano, S.-J. (2021). MRP Intro [Powerpoint slides]. Quercus. [https://q.utoronto.ca/courses/236142/files/16572308?wrap=1](https://q.utoronto.ca/courses/236142/files/16572308?wrap=1). (Last Accessed: November 3, 2021) 
+
+13. Jankovic, D. (2021, October 14). *A Simple Interpretation of Logistic Regression Coefficients*. Medium. [https://towardsdatascience.com/a-simple-interpretation-of-logistic-regression-coefficients-e3a40a62e8cf](https://towardsdatascience.com/a-simple-interpretation-of-logistic-regression-coefficients-e3a40a62e8cf). (Last Accessed: November 3, 2021)
+
+14. *Poststratification - an overview | ScienceDirect Topics*. (n.d.). Sciencedirect. [https://www.sciencedirect.com/topics/mathematics/poststratification](https://www.sciencedirect.com/topics/mathematics/poststratification). (Last Accessed: November 3, 2021) 
+
+15.  Aschwanden, C. (2019, April 16). *Not Even Scientists Can Easily Explain P-values*. FiveThirtyEight. [https://web.archive.org/web/20190925221600/https://fivethirtyeight.com/features/not-even-scientists-can-easily-explain-p-values/](https://web.archive.org/web/20190925221600/https://fivethirtyeight.com/features/not-even-scientists-can-easily-explain-p-values/). (Last Accessed: November 4, 2021) 
+
+16. Heard, A. (2020). *Canadian election results by party 1867 to 2019*. [https://www.sfu.ca/~aheard/elections/1867-present.html](https://www.sfu.ca/~aheard/elections/1867-present.html). (Last Accessed: November 4, 2021) 
+
+17. David Robinson, Alex Hayes and Simon Couch (2021). *broom: Convert Statistical Objects into Tidy Tibbles*. https://broom.tidymodels.org/,[https://github.com/tidymodels/broom](https://github.com/tidymodels/broom). (Last Accessed: November 5, 2021) 
+
+18. Wickham et al.,(2019). *Welcome to the Tidyverse. Journal of Open Source Software*, 4(43), 1686. [https://doi.org/10.21105/joss.01686](https://doi.org/10.21105/joss.01686). (Last Accessed: November 5, 2021) 
+
+19. Yihui Xie (2021). *knitr: A General-Purpose Package for Dynamic Report Generation in R*. R package version 1.34. (Last Accessed: November 5, 2021)
+
+20. Sharla Gelfand (2020). *opendatatoronto: Access the City of Toronto Open Data Portal*. [https://sharlagelfand.github.io/opendatatoronto/](https://sharlagelfand.github.io/opendatatoronto/). (Last Accessed: November 5, 2021)
+
+21. Grolemund, G. (2014, July 16) *Introduction to R Markdown*. RStudio. [https://rmarkdown.rstudio.com/articles_intro.html](https://rmarkdown.rstudio.com/articles_intro.html). (Last Accessed: November 5, 2021) 
+
+22. Dekking, F. M., et al. (2005) *A Modern Introduction to Probability and Statistics: Understanding why and how.* Springer Science & Business Media. (Last Accessed: November 5, 2021)
+
+23. Allaire, J.J., et. el. *References: Introduction to R Markdown*. RStudio. [https://rmarkdown.rstudio.com/docs/](https://rmarkdown.rstudio.com/docs/). (Last Accessed: November 5, 2021)
+
+24. Hadley Wickham and Dana Seidel (2020). *scales: Scale Functions for Visualization*. [https://scales.r-lib.org, https://github.com/r-lib/scales](https://scales.r-lib.org, https://github.com/r-lib/scales). (Last Accessed: November 5, 2021)
+
